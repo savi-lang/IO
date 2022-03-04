@@ -1,0 +1,19 @@
+:manifest lib IO
+  :sources "src/*.savi"
+
+  :dependency ByteStream v0
+    :from "github:savi-lang/ByteStream"
+
+  :dependency OSError v0
+    :from "github:savi-lang/OSError"
+
+:manifest bin "spec"
+  :copies IO
+  :sources "spec/*.savi"
+
+  :dependency Spec v0
+    :from "github:savi-lang/Spec"
+    :depends on Map
+
+  :transitive dependency Map v0
+    :from "github:savi-lang/Map"

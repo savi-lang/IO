@@ -23,20 +23,12 @@
     yield input_action
     @
 
-  // TODO: Remove in favor of `deferred_action` above.
-  :fun ref deferred_actions @
-    :yields ActionType for None
-
 :trait tag IO.Actor(ActionType val)
   :fun io @->(IO.Engine(ActionType)) // TODO: somehow private... allow the trait to use this, but make it private to other callers?
   :fun ref _io_react(action ActionType) @
 
   :be io_deferred_action(input_action ActionType) // TODO: somehow private...
     @io.deferred_action(input_action) -> (action | @_io_react(action))
-
-  // TODO: Remove in favor of `io_deferred_action` above.
-  :be io_deferred_actions // TODO: somehow private...
-    @io.deferred_actions -> (action | @_io_react(action))
 
   :: This is a special behaviour that hooks into the AsioEventNotify runtime,
   :: called whenever an event handle we're subscribed to receives an event.
@@ -156,11 +148,6 @@
     @_fd = fd
     @_is_writable = True // TODO: Remove these lines?
     @_is_readable = True // TODO: Remove these lines?
-    @
-
-  :fun ref deferred_actions
-    :yields IO.Action for None
-    // TODO
     @
 
   :fun ref react(event CPointer(AsioEvent), flags U32, arg U32) @

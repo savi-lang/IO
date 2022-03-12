@@ -13,6 +13,8 @@
   :member IO.Action.Read: 3
   :member IO.Action.Write: 4
   :member IO.Action.Closed: 5
+  :member IO.Action.OpenedChild: 6
+  :member IO.Action.ClosedChild: 7
 
 :trait IO.Engine(ActionType val)
   :fun ref react(event CPointer(AsioEvent), flags U32, arg U32) @

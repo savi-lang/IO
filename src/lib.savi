@@ -1,10 +1,10 @@
-:ffi LibC
+:ffimodule LibC
   :fun getsockopt(
     fd U32, level I32, option I32
     out_value CPointer(U8), out_length CPointer(USize)
   ) I32
 
-:ffi LibPonyOs
+:ffimodule LibPonyOs
   :fun pony_os_sockopt_level(level I32) I32
   :fun pony_os_sockopt_option(option I32) I32
   :fun pony_os_connect_tcp(owner AsioEventNotify, host CPointer(U8), service CPointer(U8), from CPointer(U8), asio_flags U32) U32

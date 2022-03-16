@@ -76,7 +76,7 @@
     from String = ""
   )
     asio_flags =
-      if Platform.windows (AsioEvent.read_write | AsioEvent.read_write_oneshot)
+      if Platform.is_windows (AsioEvent.read_write | AsioEvent.read_write_oneshot)
     connect_count = LibPonyOs.pony_os_connect_tcp(
       actor, host.cstring, service.cstring, from.cstring, asio_flags
     )
@@ -86,7 +86,7 @@
   // TODO: Make private or move to another package:
   :new new_from_fd_rw(actor AsioEventNotify, @_fd)
     asio_flags =
-      if Platform.windows (AsioEvent.read_write | AsioEvent.read_write_oneshot)
+      if Platform.is_windows (AsioEvent.read_write | AsioEvent.read_write_oneshot)
     @_event = AsioEvent.create(actor, @_fd, asio_flags, 0, True)
 
   // TODO: Make private or move to another package:
@@ -213,7 +213,7 @@
   :: All data currently available to be read from the socket will be read.
   :: However, if the connection is muted, a hard close will be done instead,
   :: closing the socket immediately with no more data being read from it.
-  :fun ref close Bool: if Platform.windows (@_close | @hard_close)
+  :fun ref close Bool: if Platform.is_windows (@_close | @hard_close)
   :fun ref _close Bool
     @_has_closed = True
 
@@ -243,7 +243,7 @@
     // So, we finish up here in a later call to this function by unsubscribing,
     // after the socket is no longer readable and we have no pending writes.
     if (
-      Platform.windows
+      Platform.is_windows
       && @has_closed && @_is_readable.not // TODO: && @_pending_sent == 0
     ) (
       AsioEvent.unsubscribe(@_event)
@@ -261,7 +261,7 @@
       // @_pending_writev.clear
       // @_pending_sent = 0
 
-      if Platform.windows.not (
+      if Platform.is_windows.not (
         AsioEvent.unsubscribe(@_event)
         @_is_readable = False
         @_is_writable = False

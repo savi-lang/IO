@@ -38,7 +38,7 @@
     case (
     | @_write_total_size == 0 | @      // nothing left to flush
     | !@_is_writable          | error! // can't flush right now
-    | Platform.windows        | @_write_flush_windows!
+    | Platform.is_windows     | @_write_flush_windows!
     |                           @_write_flush_posix!
     )
 

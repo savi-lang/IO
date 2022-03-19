@@ -18,7 +18,7 @@
 :trait _WriteBuffer
   :is ByteStream.Sink
 
-  :fun _event @->(CPointer(AsioEvent))
+  :fun _event_id @->(CPointer(AsioEvent.ID.Opaque)) // TODO: @->(AsioEvent.ID)
 
   :let _write_chunks Array(_WriteChunk): []
   :var _write_total_size USize: 0
@@ -43,7 +43,7 @@
     )
 
   :fun ref _write_flush_posix!
-    writev_max_chunks = LibPonyOs.pony_os_writev_max
+    writev_max_chunks = _FFI.pony_os_writev_max
     num_to_send USize = 0
     bytes_to_send USize = 0
 
@@ -60,8 +60,8 @@
         )
       )
 
-      bytes_written = LibPonyOs.pony_os_writev!(
-        @_event
+      bytes_written = _FFI.pony_os_writev!(
+        @_event_id
         @_write_chunks.cpointer
         num_to_send
       )
@@ -70,8 +70,8 @@
     @
 
   :fun ref _write_flush_windows!
-    LibPonyOs.pony_os_writev!(
-      @_event
+    _FFI.pony_os_writev!(
+      @_event_id
       @_write_chunks.cpointer
       @_write_windows_unacknowledged_chunks
     )

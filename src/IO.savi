@@ -1,10 +1,4 @@
-// TODO: Move everything in this file to a separate "IO" package,
-// once the interface is settled and deemed to be safe for non-FFI users.
-// TODO: Also move the AsioEvent type into the "IO" package too,
-// and rename it to a private name so that it is not accessible on its own,
-// and can only be utilized via this IO.CoreEngine abstraction.
-// Though maybe that presents problems for the _event_notify interface?
-// For that matter, maybe allowing flags and arg there to be non-opaque is bad.
+// TODO: Finish auditing safety of the boundaries of this library.
 
 :enum IO.Action
   :const bit_width U8: 8
@@ -17,7 +11,7 @@
   :member IO.Action.ClosedChild: 7
 
 :trait IO.Engine(ActionType val)
-  :fun ref react(event CPointer(AsioEvent), flags U32, arg U32) @
+  :fun ref react(event AsioEvent) @
     :yields ActionType for None
 
   :fun ref deferred_action(input_action ActionType) @
@@ -26,19 +20,20 @@
     @
 
 :trait tag IO.Actor(ActionType val)
-  :fun io @->(IO.Engine(ActionType)) // TODO: somehow private... allow the trait to use this, but make it private to other callers?
-  :fun ref _io_react(action ActionType) @
+  :is AsioEvent.Actor
+  :fun io @->(IO.Engine(ActionType))
+  :fun ref io_react(action ActionType) @
 
-  :be io_deferred_action(input_action ActionType) // TODO: somehow private...
-    @io.deferred_action(input_action) -> (action | @_io_react(action))
+  :be io_deferred_action(input_action ActionType)
+    @io.deferred_action(input_action) -> (action | @io_react(action))
 
-  :: This is a special behaviour that hooks into the AsioEventNotify runtime,
+  :: This is a special behaviour that hooks into the AsioEvent.Actor runtime,
   :: called whenever an event handle we're subscribed to receives an event.
   ::
   :: We expect the _io engine to interpret the event into an action to yield,
-  :: and we will forward the yielded action the the _io_react method.
-  :be _event_notify(event CPointer(AsioEvent), flags U32, arg U32)
-    @io.react(event, flags, arg) -> (action | @_io_react(action))
+  :: and we will forward the yielded action the the io_react method.
+  :be _asio_event(event AsioEvent)
+    @io.react(event) -> (action | @io_react(action))
 
 :class IO.CoreEngine
   :is IO.Engine(IO.Action)
@@ -47,7 +42,7 @@
   :copies _WriteBuffer
   :is ByteStream.Sink
 
-  :var _event CPointer(AsioEvent): AsioEvent.none
+  :var _event_id AsioEvent.ID: CPointer(AsioEvent.ID.Opaque).null // TODO: AsioEvent.ID.null
   :var _fd U32: -1
   :var _os_error: OSError.None
   :var _pending_connect_count U32: 0
@@ -57,8 +52,8 @@
   :var _is_send_shutdown Bool: False
   :var _is_recv_shutdown Bool: False
 
-  :fun is_open: @_event.is_not_null && @_has_closed.not
-  :fun has_opened: @_event.is_not_null || @_has_closed
+  :fun is_open: @_event_id.is_not_null && @_has_closed.not
+  :fun has_opened: @_event_id.is_not_null || @_has_closed
   :fun is_waiting_to_open: @has_opened.not
   :fun has_closed: @_has_closed
 
@@ -70,32 +65,38 @@
 
   // TODO: Make private or move to another package:
   :new new_tcp_connect!(
-    actor AsioEventNotify
+    actor AsioEvent.Actor
     host String
     service String
     from String = ""
   )
-    asio_flags =
-      if Platform.is_windows (AsioEvent.read_write | AsioEvent.read_write_oneshot)
-    connect_count = LibPonyOs.pony_os_connect_tcp(
+    asio_flags = if Platform.is_windows (
+      AsioEvent.Flags.read_write
+    |
+      AsioEvent.Flags.read_write_oneshot
+    )
+    connect_count = _FFI.pony_os_connect_tcp(
       actor, host.cstring, service.cstring, from.cstring, asio_flags
     )
     if (connect_count == 0) error!
     @_pending_connect_count = connect_count
 
   // TODO: Make private or move to another package:
-  :new new_from_fd_rw(actor AsioEventNotify, @_fd)
-    asio_flags =
-      if Platform.is_windows (AsioEvent.read_write | AsioEvent.read_write_oneshot)
-    @_event = AsioEvent.create(actor, @_fd, asio_flags, 0, True)
+  :new new_from_fd_rw(actor AsioEvent.Actor, @_fd)
+    asio_flags = if Platform.is_windows (
+      AsioEvent.Flags.read_write
+    |
+      AsioEvent.Flags.read_write_oneshot
+    )
+    @_event_id = _FFI.pony_asio_event_create(actor, @_fd, asio_flags, 0, True)
 
   // TODO: Make private or move to another package:
-  :new new_from_fd_r(actor AsioEventNotify, @_fd)
-    asio_flags = AsioEvent.read
-    @_event = AsioEvent.create(actor, @_fd, AsioEvent.read, 0, True)
+  :new new_from_fd_r(actor AsioEvent.Actor, @_fd)
+    asio_flags = AsioEvent.Flags.read
+    @_event_id = _FFI.pony_asio_event_create(actor, @_fd, asio_flags, 0, True)
 
   :fun ref _clear_state_after_final_dispose
-    @_event = AsioEvent.none
+    @_event_id = CPointer(AsioEvent.ID.Opaque).null // TODO: AsioEvent.ID.null
     @_fd = -1
     @_has_closed = True
     @_is_readable = False
@@ -109,8 +110,8 @@
   :fun ref emit_bytes_into!(read_buffer Bytes'ref) USize
     try (
       orig_size = read_buffer.size
-      bytes_read = LibPonyOs.pony_os_recv!(
-        @_event
+      bytes_read = _FFI.pony_os_recv!(
+        @_event_id
         read_buffer.cpointer(orig_size)
         read_buffer.space - orig_size
       )
@@ -122,9 +123,9 @@
       // This is safe because the asio thread isn't currently subscribed
       // for a read event so will not be writing to the readable flag.
       if (bytes_read == 0) (
-        AsioEvent.set_readable(@_event, False)
+        _FFI.pony_asio_event_set_readable(@_event_id, False)
         @_is_readable = False
-        AsioEvent.resubscribe_read(@_event)
+        _FFI.pony_asio_event_resubscribe_read(@_event_id)
       )
 
       bytes_read
@@ -133,49 +134,49 @@
       error!
     )
 
-  :fun ref _adopt_event!(event CPointer(AsioEvent)) @
-    fd = AsioEvent.fd(event)
-    os_error = _PonyOs.check_os_error(fd)
+  :fun ref _adopt_event!(event AsioEvent) @
+    fd = _FFI.pony_asio_event_fd(event.id)
+    os_error = _FFI.Util.check_os_error(fd)
 
     // Check if the above system call failed. If so, we bail out here.
     if (os_error != OSError.None) (
-      AsioEvent.unsubscribe(event)
-      LibPonyOs.pony_os_socket_close(fd)
+      _FFI.pony_asio_event_unsubscribe(event.id)
+      _FFI.pony_os_socket_close(fd)
       @_os_error = os_error
       error!
     )
 
     // Adopt the event.
-    @_event = event
+    @_event_id = event.id
     @_fd = fd
     @_is_writable = True // TODO: Remove these lines?
     @_is_readable = True // TODO: Remove these lines?
     @
 
-  :fun ref react(event CPointer(AsioEvent), flags U32, arg U32) @
+  :fun ref react(event AsioEvent) @
     :yields IO.Action for None
     case (
     // First, if this is a disposable event handle, just dispose of it.
     // We won't yield any actions back to the caller about this,
     // unless it is the event that we own.
-    | AsioEvent.is_disposable(flags) |
-      AsioEvent.destroy(event)
-      if (@_event === event) (
+    | event.is_disposable |
+      _FFI.pony_asio_event_destroy(event.id)
+      if (event.id === @_event_id) (
         @_clear_state_after_final_dispose
         yield IO.Action.Closed
       )
 
     // If we own this event, continue by yielding any relevant actions.
-    | @_event === event |
-      @_event_notify_continue(flags, arg) -> (action | yield action)
+    | event.id === @_event_id |
+      @_event_notify_continue(event) -> (action | yield action)
 
     // If this engine is waiting to open, try adopting this new event to open.
-    | @is_waiting_to_open && AsioEvent.is_writable(flags) |
+    | @is_waiting_to_open && event.is_writable |
       try (
         @_pending_connect_count -= 1
         @_adopt_event!(event)
         yield IO.Action.Opened
-        @_event_notify_continue(flags, arg) -> (action | yield action)
+        @_event_notify_continue(event) -> (action | yield action)
       |
         // If there are no more pending connections, our last one has failed
         // and we have no choice but to admit final failure.
@@ -189,19 +190,19 @@
     // so we unsubscribe from it, allowing it to become disposable later,
     // at which point it will finally get cleaned up and freed.
     |
-      AsioEvent.unsubscribe(@_event)
+      _FFI.pony_asio_event_unsubscribe(@_event_id)
     )
     @
 
   :: Handle incoming events for the event handle that we already own.
-  :fun ref _event_notify_continue(flags U32, arg U32)
+  :fun ref _event_notify_continue(event AsioEvent)
     :yields IO.Action for None
-    if AsioEvent.is_writable(flags) (
+    if event.is_writable (
       @_is_writable = True
       // TODO: complete writes, pending writes logic from Pony
       yield IO.Action.Write
     )
-    if AsioEvent.is_readable(flags) (
+    if event.is_readable (
       @_is_readable = True
       yield IO.Action.Read
     )
@@ -226,7 +227,7 @@
     ) (
       @_is_send_shutdown = True
       if @is_open (
-        LibPonyOs.pony_os_socket_shutdown(@_fd)
+        _FFI.pony_os_socket_shutdown(@_fd)
       |
         @_is_recv_shutdown = True
       )
@@ -246,7 +247,7 @@
       Platform.is_windows
       && @has_closed && @_is_readable.not // TODO: && @_pending_sent == 0
     ) (
-      AsioEvent.unsubscribe(@_event)
+      _FFI.pony_asio_event_unsubscribe(@_event_id)
     )
 
     did_close
@@ -262,14 +263,14 @@
       // @_pending_sent = 0
 
       if Platform.is_windows.not (
-        AsioEvent.unsubscribe(@_event)
+        _FFI.pony_asio_event_unsubscribe(@_event_id)
         @_is_readable = False
         @_is_writable = False
-        AsioEvent.set_readable(@_event, False)
-        AsioEvent.set_writable(@_event, False)
+        _FFI.pony_asio_event_set_readable(@_event_id, False)
+        _FFI.pony_asio_event_set_writeable(@_event_id, False)
       )
 
-      LibPonyOs.pony_os_socket_close(@_fd)
+      _FFI.pony_os_socket_close(@_fd)
       @_has_closed = True
       @_is_send_shutdown = True
       @_is_recv_shutdown = True

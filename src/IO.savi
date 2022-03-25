@@ -1,14 +1,13 @@
 // TODO: Finish auditing safety of the boundaries of this library.
 
 :enum IO.Action
-  :const bit_width U8: 8
-  :member IO.Action.Opened: 1
-  :member IO.Action.OpenFailed: 2
-  :member IO.Action.Read: 3
-  :member IO.Action.Write: 4
-  :member IO.Action.Closed: 5
-  :member IO.Action.OpenedChild: 6
-  :member IO.Action.ClosedChild: 7
+  :member Opened 1
+  :member OpenFailed 2
+  :member Read 3
+  :member Write 4
+  :member Closed 5
+  :member OpenedChild 6
+  :member ClosedChild 7
 
 :trait IO.Engine(ActionType val)
   :fun ref react(event AsioEvent) @

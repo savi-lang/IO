@@ -84,20 +84,6 @@
     if (connect_count == 0) error!
     @_pending_connect_count = connect_count
 
-  :: DEPRECATED: Use `new` with an `AsioEvent.ID` instead.
-  :new new_from_fd_rw(actor AsioEvent.Actor, @_fd)
-    asio_flags = if Platform.is_windows (
-      AsioEvent.Flags.read_write
-    |
-      AsioEvent.Flags.read_write_oneshot
-    )
-    @_event_id = _FFI.pony_asio_event_create(actor, @_fd, asio_flags, 0, True)
-
-  :: DEPRECATED: Use `new` with an `AsioEvent.ID` instead.
-  :new new_from_fd_r(actor AsioEvent.Actor, @_fd)
-    asio_flags = AsioEvent.Flags.read
-    @_event_id = _FFI.pony_asio_event_create(actor, @_fd, asio_flags, 0, True)
-
   :fun ref _clear_state_after_final_dispose
     @_event_id = AsioEvent.ID.null
     @_fd = -1

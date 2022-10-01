@@ -189,8 +189,8 @@
         )
       )
 
+    // ignore
     | @_event_id.is_null |
-      // ignore
 
     // Otherwise, this is an event that we don't own and don't want to own,
     // so we unsubscribe from it, allowing it to become disposable later,

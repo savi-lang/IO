@@ -189,6 +189,9 @@
         )
       )
 
+    // ignore
+    | @_event_id.is_null |
+
     // Otherwise, this is an event that we don't own and don't want to own,
     // so we unsubscribe from it, allowing it to become disposable later,
     // at which point it will finally get cleaned up and freed.

@@ -137,6 +137,11 @@
       error!
     )
 
+  :fun ref adopt_event!(event AsioEvent)
+    if @is_open @hard_close
+    @_adopt_event!(event)
+    @
+
   :fun ref _adopt_event!(event AsioEvent) @
     fd = _FFI.pony_asio_event_fd(event.id)
     os_error = _FFI.Util.check_os_error(fd)
@@ -277,6 +282,7 @@
       )
 
       _FFI.pony_os_socket_close(@_fd)
+      @_fd = -1
       @_has_closed = True
       @_is_send_shutdown = True
       @_is_recv_shutdown = True

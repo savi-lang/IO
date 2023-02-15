@@ -1,40 +1,5 @@
 // TODO: Finish auditing safety of the boundaries of this library.
 
-:enum IO.Action
-  :member Opened 1
-  :member OpenFailed 2
-  :member Read 3
-  :member Write 4
-  :member Closed 5
-  :member OpenedChild 6
-  :member ClosedChild 7
-  :member NotHandled 8
-
-:trait IO.Engine(ActionType val)
-  :fun ref react(event AsioEvent) @
-    :yields ActionType for None
-
-  :fun ref deferred_action(input_action ActionType) @
-    // TODO: :yields ActionType for None
-    yield input_action
-    @
-
-:trait tag IO.Actor(ActionType val)
-  :is AsioEvent.Actor
-  :fun io @->(IO.Engine(ActionType))
-  :fun ref io_react(action ActionType) @
-
-  :be io_deferred_action(input_action ActionType)
-    @io.deferred_action(input_action) -> (action | @io_react(action))
-
-  :: This is a special behaviour that hooks into the AsioEvent.Actor runtime,
-  :: called whenever an event handle we're subscribed to receives an event.
-  ::
-  :: We expect the _io engine to interpret the event into an action to yield,
-  :: and we will forward the yielded action the the io_react method.
-  :be _asio_event(event AsioEvent)
-    @io.react(event) -> (action | @io_react(action))
-
 :class IO.CoreEngine
   :is IO.Engine(IO.Action)
   :is ByteStream.Source

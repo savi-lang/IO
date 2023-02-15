@@ -1,0 +1,9 @@
+// TODO: Documentation
+:trait IO.Engine(ActionType val)
+  :fun ref react(event AsioEvent) @
+    :yields ActionType for None
+
+  :fun ref deferred_action(input_action ActionType) @
+    // TODO: :yields ActionType for None
+    yield input_action
+    @

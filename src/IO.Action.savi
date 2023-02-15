@@ -1,0 +1,10 @@
+// TODO: Documentation
+:enum IO.Action
+  :member Opened 1
+  :member OpenFailed 2
+  :member Read 3
+  :member Write 4
+  :member Closed 5
+  :member OpenedChild 6
+  :member ClosedChild 7
+  :member NotHandled 8

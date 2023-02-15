@@ -8,6 +8,7 @@
   :member Closed 5
   :member OpenedChild 6
   :member ClosedChild 7
+  :member NotHandled 8
 
 :trait IO.Engine(ActionType val)
   :fun ref react(event AsioEvent) @
@@ -44,7 +45,6 @@
   :var _event_id AsioEvent.ID: AsioEvent.ID.null
   :var _fd U32: -1
   :var _os_error: OSError.None
-  :var _pending_connect_count U32: 0
   :var _has_closed Bool: False
   :var _is_readable Bool: False
 
@@ -65,24 +65,6 @@
 
   :: Get the `AsioEvent.ID` associated with this `IO.CoreEngine`.
   :fun event_id: @_event_id
-
-  :: DEPRECATED: Use `new` with an `AsioEvent.ID` instead.
-  :new new_tcp_connect!(
-    actor AsioEvent.Actor
-    host String
-    service String
-    from String = ""
-  )
-    asio_flags = if Platform.is_windows (
-      AsioEvent.Flags.read_write
-    |
-      AsioEvent.Flags.read_write_oneshot
-    )
-    connect_count = _FFI.pony_os_connect_tcp(
-      actor, host.cstring, service.cstring, from.cstring, asio_flags
-    )
-    if (connect_count == 0) error!
-    @_pending_connect_count = connect_count
 
   :fun ref _clear_state_after_final_dispose
     @_event_id = AsioEvent.ID.null
@@ -164,30 +146,10 @@
     | event.id === @_event_id |
       @_event_notify_continue(event) -> (action | yield action)
 
-    // If this engine is waiting to open, try adopting this new event to open.
-    | @is_waiting_to_open && event.is_writable |
-      try (
-        @_pending_connect_count -= 1
-        @_adopt_event!(event)
-        yield IO.Action.Opened
-        @_event_notify_continue(event) -> (action | yield action)
-      |
-        // If there are no more pending connections, our last one has failed
-        // and we have no choice but to admit final failure.
-        if (@_pending_connect_count == 0) (
-          @_clear_state_after_final_dispose
-          yield IO.Action.OpenFailed
-        )
-      )
-
-    // ignore
-    | @_event_id.is_null |
-
-    // Otherwise, this is an event that we don't own and don't want to own,
-    // so we unsubscribe from it, allowing it to become disposable later,
-    // at which point it will finally get cleaned up and freed.
+    // If we don't own the event, we can't and won't handle it.
+    // Pass the buck up to the caller to figure out what to do with it.
     |
-      _FFI.pony_asio_event_unsubscribe(@_event_id)
+      yield IO.Action.NotHandled
     )
     @
 

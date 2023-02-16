@@ -1,3 +1,5 @@
 :actor Main
   :new (env)
-    env.out.print("TODO: Add tests.")
+    Spec.Process.run(env, [
+      Spec.Run(IO.Pipe.Spec).new(env)
+    ])

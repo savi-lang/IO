@@ -1,0 +1,59 @@
+// TODO: Documentation
+:module IO.Pipe
+  :fun create! Pair(IO.Pipe.Write.Ticket, IO.Pipe.Read.Ticket)
+    if Platform.is_windows (
+      read_handle = CPointer(None).null
+      write_handle = CPointer(None).null
+      error! unless _FFI.windows_create_pipe(
+        stack_address_of_variable read_handle
+        stack_address_of_variable write_handle
+        CPointer(None).null
+        0 // (no particular size suggestion - use the default)
+      )
+
+      _FFI.Util.windows_handle_set_inherit!(read_handle, True)
+      _FFI.Util.windows_handle_set_inherit!(write_handle, True)
+      _FFI.Util.windows_pipe_set_nowait!(read_handle, True)
+      _FFI.Util.windows_pipe_set_nowait!(write_handle, True)
+
+      read_fd =_FFI.windows_open_osfhandle(read_handle, 0)
+      write_fd =_FFI.windows_open_osfhandle(write_handle, 0)
+      error! if (read_fd == U32.max_value)
+      error! if (write_fd == U32.max_value)
+    |
+      posix_fds = Pair(U32).new(0, 0)
+      res = _FFI.pipe(stack_address_of_variable posix_fds)
+      error! if res.is_nonzero
+      read_fd = posix_fds.first
+      write_fd = posix_fds.last
+
+      _FFI.Util.fcntl_set_fdcloexec!(read_fd)
+      _FFI.Util.fcntl_set_fdcloexec!(write_fd)
+      _FFI.Util.fcntl_set_ononblock!(read_fd)
+      _FFI.Util.fcntl_set_ononblock!(write_fd)
+    )
+
+    Pair(IO.Pipe.Write.Ticket, IO.Pipe.Read.Ticket).new(
+      IO.Pipe.Write.Ticket._new(write_fd)
+      IO.Pipe.Read.Ticket._new(read_fd)
+    )
+
+// TODO: Documentation
+:struct iso IO.Pipe.Write.Ticket
+  :let _fd U32
+  :new iso _new(@_fd)
+
+  :: Destroy this ticket to unwrap the file descriptor number inside.
+  ::
+  :: You can use this if you want to write to the pipe unsafely in FFI code.
+  :fun iso take_fd U32: @_fd
+
+// TODO: Documentation
+:struct iso IO.Pipe.Read.Ticket
+  :let _fd U32
+  :new iso _new(@_fd)
+
+  :: Destroy this ticket to unwrap the file descriptor number inside.
+  ::
+  :: You can use this if you want to read from the pipe unsafely in FFI code.
+  :fun iso take_fd U32: @_fd

@@ -25,6 +25,39 @@
   :ffi pony_os_recv!(event_id AsioEvent.ID, buffer CPointer(U8), count USize) USize
   :ffi pony_os_errno OSError
 
+  // POSIX-specific functions
+
+  :ffi pipe(read_and_write_fds CPointer(Pair(U32, U32))) I32
+  :ffi variadic fcntl(fd U32, cmd I32) I32
+
+  // Windows-specific functions
+
+  :ffi windows_create_pipe(
+    read_handle_out CPointer(CPointer(None))
+    write_handle_out CPointer(CPointer(None))
+    sec_attrs CPointer(None) // (unused by us)
+    buffer_size_suggestion U32
+  ) Bool
+    :foreign_name CreatePipe
+
+  :ffi windows_set_handle_information(
+    handle CPointer(None)
+    mask U32
+    flags U32
+  ) Bool
+    :foreign_name SetHandleInformation
+
+  :ffi windows_set_named_pipe_handle_state(
+    handle CPointer(None)
+    mode CPointer(U32)
+    max_collection_count CPointer(U32)
+    collect_data_timeout CPointer(U32)
+  ) Bool
+    :foreign_name SetNamedPipeHandleState
+
+  :ffi windows_open_osfhandle(handle CPointer(None), flags I32) U32
+    :foreign_name _open_osfhandle
+
 :module _FFI.Util // TODO: Rename/cleanup
   :fun level_socket  I32: _FFI.pony_os_sockopt_level(4138)
   :fun option_error  I32: _FFI.pony_os_sockopt_option(827)
@@ -50,4 +83,52 @@
       // Convert the 4-byte array to the equivalent 32-bit OSError value.
       // TODO: Should OSError enum provide a from_u32! method?
       try (OSError.from_u64!(option.read_native_u32!(0).u64) | OSError.EINVAL)
+    )
+
+  // POSIX-specific helpers
+
+  :fun fnctl_cmd_get_fd I32: 1
+  :fun fnctl_cmd_set_fd I32: 2
+  :fun fnctl_cmd_get_fl I32: 3
+  :fun fnctl_cmd_set_fl I32: 4
+
+  :fun fnctl_opt_fdcloexec I32: 1
+  :fun fnctl_opt_nonblock I32: if Platform.is_linux (2048 | 4)
+
+  :fun fcntl_set_fdcloexec!(fd U32) None
+    if Platform.is_posix (
+      res = _FFI.fcntl(fd, @fnctl_cmd_set_fd, @fnctl_opt_fdcloexec)
+      error! if res.is_nonzero
+    )
+
+  :fun fcntl_set_ononblock!(fd U32) None
+    if Platform.is_posix (
+      res = _FFI.fcntl(fd, @fnctl_cmd_set_fl, @fnctl_opt_nonblock)
+      error! if res.is_nonzero
+    )
+
+  // Windows-specific helpers
+
+  :fun windows_handle_flag_inherit U32: 0x1
+
+  :fun windows_handle_set_inherit!(handle CPointer(None), value Bool) None
+    if Platform.is_windows (
+      error! unless _FFI.windows_set_handle_information(
+        handle
+        @windows_handle_flag_inherit
+        if value (U32.max_value | 0)
+      )
+    )
+
+  :fun windows_pipe_flag_nowait U32: 0x1
+
+  :fun windows_pipe_set_nowait!(handle CPointer(None), value Bool) None
+    if Platform.is_windows (
+      mode = if value (@windows_pipe_flag_nowait | 0)
+      error! unless _FFI.windows_set_named_pipe_handle_state(
+        handle
+        stack_address_of_variable mode
+        CPointer(U32).null
+        CPointer(U32).null
+      )
     )

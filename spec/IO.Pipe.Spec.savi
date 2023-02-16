@@ -1,0 +1,6 @@
+:class IO.Pipe.Spec
+  :is Spec
+  :const describes: "IO.Pipe"
+
+  :it "can create the tickets for a pipe"
+    assert no_error: IO.Pipe.create!

@@ -18,8 +18,8 @@
 
       read_fd =_FFI.windows_open_osfhandle(read_handle, 0)
       write_fd =_FFI.windows_open_osfhandle(write_handle, 0)
-      error! if (read_fd == U32.max_value)
-      error! if (write_fd == U32.max_value)
+      error! if read_fd == U32.max_value
+      error! if write_fd == U32.max_value
     |
       posix_fds = Pair(U32).new(0, 0)
       res = _FFI.pipe(stack_address_of_variable posix_fds)

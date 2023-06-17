@@ -47,8 +47,8 @@
     num_to_send USize = 0
     bytes_to_send USize = 0
 
-    while (@_write_total_size > 0) (
-      if (@_write_chunks.size < writev_max_chunks) (
+    while @_write_total_size > 0 (
+      if @_write_chunks.size < writev_max_chunks (
         num_to_send = @_write_chunks.size
         bytes_to_send = @_write_total_size
       |
@@ -93,7 +93,7 @@
     num_to_send USize
   )
     @_write_total_size -= bytes_sent
-    if (bytes_sent == bytes_to_send) (
+    if bytes_sent == bytes_to_send (
       // Fast path for the case of having sent all bytes we wanted to send.
       // We can simply trim the intended number of chunks.
       @_write_chunks.trim_in_place(num_to_send)
@@ -126,7 +126,7 @@
       )
 
       // If the lingering chunk was only partially sent, we need to trim it.
-      if (further_bytes_sent > 0) (
+      if further_bytes_sent > 0 (
         try (
           @_write_chunks.replace_at!(lingering_chunk_index) -> (chunk |
             chunk.trim_left(further_bytes_sent)

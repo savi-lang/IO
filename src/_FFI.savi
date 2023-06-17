@@ -70,7 +70,7 @@
       fd, @level_socket, @option_error, option.cpointer, option_size.cpointer
     )
 
-    if (result != 0) (
+    if result != 0 (
       // Nonzero result indicates that the getsockopt call itself failed.
       // So we fetch errno, which holds the OSError for the failed call.
       _FFI.pony_os_errno

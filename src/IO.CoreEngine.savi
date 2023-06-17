@@ -58,7 +58,7 @@
       // so we'll set the event handle as non-readable and try again later.
       // This is safe because the asio thread isn't currently subscribed
       // for a read event so will not be writing to the readable flag.
-      if (bytes_read == 0) (
+      if bytes_read == 0 (
         _FFI.pony_asio_event_set_readable(@_event_id, False)
         @_is_readable = False
         _FFI.pony_asio_event_resubscribe_read(@_event_id)
@@ -80,7 +80,7 @@
     os_error = _FFI.Util.check_os_error(fd)
 
     // Check if the above system call failed. If so, we bail out here.
-    if (os_error != OSError.None) (
+    if os_error != OSError.None (
       _FFI.pony_asio_event_unsubscribe(event.id)
       _FFI.pony_os_socket_close(fd)
       @_os_error = os_error
@@ -102,7 +102,7 @@
     // unless it is the event that we own.
     | event.is_disposable |
       _FFI.pony_asio_event_destroy(event.id)
-      if (event.id === @_event_id) (
+      if event.id === @_event_id (
         @_clear_state_after_final_dispose
         yield IO.Action.Closed
       )
@@ -159,7 +159,7 @@
 
     // Finish with a hard close if the socket is ready for that step.
     did_close = False
-    if (@is_open && @_is_send_shutdown && @_is_recv_shutdown) (
+    if @is_open && @_is_send_shutdown && @_is_recv_shutdown (
       did_close = @hard_close
     )
 

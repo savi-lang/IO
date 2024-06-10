@@ -81,8 +81,7 @@
       option.resize_possibly_including_uninitialized_memory(options_size_value)
 
       // Convert the 4-byte array to the equivalent 32-bit OSError value.
-      // TODO: Should OSError enum provide a from_u32! method?
-      try (OSError.from_u64!(option.read_native_u32!(0).u64) | OSError.EINVAL)
+      try (OSError.from_u32!(option.read_native_u32!(0)) | OSError.EINVAL)
     )
 
   // POSIX-specific helpers
